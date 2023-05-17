@@ -1,0 +1,438 @@
+#include <Keypad.h>
+#include <Arduino.h>
+#include <LiquidCrystal.h>
+#include <EasyUltrasonic.h>
+EasyUltrasonic ultrasonic;
+#include <TM1637Display.h>
+#define pot A0 //potensio
+const byte ROWS = 4, COLS = 4;
+char hexaKeys[ROWS][COLS] = {{'1', '2', '3', 'A'}, {'4', '5', '6', 'B'}, {'7', '8', '9', 'C'}, {'*', '0', '#', 'D'}};
+byte rowPins[ROWS] = {39, 41, 43, 45}, colPins[COLS] = {47, 49, 51, 53};
+Keypad key = Keypad(makeKeymap(hexaKeys), rowPins, colPins, ROWS, COLS);
+
+#include <HCSR04.h>
+
+//ultrasonik
+#define trig 31
+#define echo 33
+int pot1, pot2;
+int ultra = 0 ;
+int tahap = 0;
+const uint8_t allON[] = {0xff, 0xff, 0xff, 0xff};
+const uint8_t allOFF[] = {0x00, 0x00, 0x00, 0x00};
+const uint8_t allZERO[] = {
+  SEG_G ,
+  SEG_G ,
+  SEG_G ,
+  SEG_G
+};
+
+const int RS = 11, EN = 12, D4 = 2, D5 = 3, D6 = 4, D7 = 5;
+LiquidCrystal lcd(RS, EN, D4, D5, D6, D7);
+#define CLK 8
+#define DIO 9
+TM1637Display display = TM1637Display(CLK, DIO);
+
+#define red 22
+#define yell 24
+#define gren 26
+#define buz 28
+
+String pass = "12345";
+String intpas;
+int count = 0, index = 0, comSetVal = 0;
+int paus = 0;
+int kondisi = 0;
+
+void setup() {
+  Serial.begin(9600);
+  ultrasonic.attach(trig, echo);
+  pinMode(pot , INPUT);
+  pinMode(red, OUTPUT);
+  pinMode(yell, OUTPUT);
+  pinMode(gren, OUTPUT);
+  pinMode(buz , OUTPUT);
+  digitalWrite(buz, HIGH);
+  digitalWrite(gren , HIGH);
+  delay(500);
+  digitalWrite(red , HIGH);
+  delay(500);
+  digitalWrite(yell , HIGH);
+  delay(500);
+  digitalWrite(buz, LOW);
+  digitalWrite(gren, LOW);
+  digitalWrite(red, LOW);
+  digitalWrite(yell, LOW);
+  lcd.begin(16, 2);
+  display.setBrightness(10);
+  lcd.setCursor(0, 0);
+  lcd.print("Welcome");
+  delay(2000);
+  lcd.clear();
+  // put your setup code here, to run once:
+
+}
+
+//lcd.setCursor(3,0);
+//  lcd.print("Pilih Menu");
+//  lcd.setCursor(2,1);
+//  lcd.print("A. Potensio");
+//   lcd.setCursor(0,2);
+//  lcd.print("B. Sensor");
+//   lcd.setCursor(2,3);
+//  lcd.print("C. count up");
+
+uint8_t data[] = { 0xc0, 0xc0, 0xc0, 0xc0 };
+
+void loop() {
+
+  while (tahap == 0 )
+  {
+
+    display.setSegments(allZERO);
+    lcd.setCursor(0, 0);
+    lcd.print("Pilih menu (A,B,C)");
+    char keyy = key.getKey();
+    if (keyy)
+    {
+      if (keyy == 'A')
+      {
+        tahap = 1;
+        lcd.clear();
+      }
+      else if (keyy == 'B')
+      {
+        tahap = 2;
+        lcd.clear();
+      }
+      else if (keyy == 'C')
+      {
+        tahap = 3;
+        lcd.clear();
+      }
+    }
+
+  }
+  while (tahap == 1)
+  {
+    char keyy = key.getKey();
+
+    pot1 = analogRead(pot);
+    pot2 = map(pot1, 0 , 1023, 0 , 100);
+    lcd.setCursor(0, 0);
+    lcd.print("Nilai = ");
+    lcd.setCursor(8, 0);
+    lcd.print(pot2);
+    lcd.print("         ");
+    lcd.setCursor(0, 1);
+    lcd.print("Nilai 2 = ");
+    lcd.setCursor(10, 1);
+    lcd.print(pot1 );
+    lcd.print("         ");
+    if (keyy)
+    {
+      if (keyy == '#')
+      {
+        tahap = 0;
+        lcd.clear();
+      }
+    }
+  }
+  while (tahap == 2)
+  {
+    char keyy = key.getKey();
+
+    float distanceIN = ultrasonic.getDistanceIN(); // Read the distance in inches
+
+    float distanceCM = convertToCM(distanceIN);
+
+    // Print the distance value in Serial Monitor
+    lcd.setCursor(0, 0);
+    lcd.print(distanceCM);
+
+    lcd.println(" cm                ");
+    for (int i = 0 ; i < 100 ; i++)
+    {
+      delay(1);
+      if (keyy)
+      {
+        if (keyy == '#')
+        {
+          tahap = 0;
+          lcd.clear();
+        }
+      }
+    }
+
+  }
+  while (tahap == 3)
+  {
+    lcd.setCursor(0, 0);
+    display.setSegments(allZERO);
+    lcd.print("Pass : ");
+    char keyy = key.getKey();
+    if (keyy)
+    {
+      if (keyy != 'A' && keyy != 'B' && keyy != 'C' && keyy != 'D' && keyy != '#' && keyy != '*')
+      {
+        intpas += keyy;
+        //menyimpan password
+        lcd.setCursor (0, 1);
+        lcd.print (intpas);
+      }
+      else if (keyy == '*')
+      {
+        intpas = "";
+        keyy = ' ';
+        lcd.clear();
+      }
+      else if (keyy == 'A')
+      {
+        if (intpas == pass)
+        {
+          for (int w = 0; w < 3; w++)
+          {
+            display.showNumberDec(0, true);
+            digitalWrite(gren, HIGH);
+            delay(500);
+            display.setSegments(allOFF);
+            digitalWrite(gren, LOW);
+            delay(500);
+          }
+          tahap = 4;
+          lcd.clear();
+        }
+        else
+        {
+          for (int w = 0; w < 3; w++)
+          {
+            display.showNumberDec(0, true);//7segment 0000 kedip
+            digitalWrite(red, HIGH);
+            delay(500);
+            display.setSegments(allOFF);
+            digitalWrite(red, LOW);
+            delay(500);
+          }
+          intpas = "";
+          keyy = ' ';
+          lcd.clear();
+        }
+      }
+      else if (keyy == '#')
+      {
+        intpas = "";
+        index = 0;
+        comSetVal = 0;
+        tahap = 0;
+        lcd.clear();
+      }
+    }
+  }
+  while (tahap == 4)
+  {
+    lcd.clear();
+    lcd.print(" - set - ");
+    //display.clear();
+    display.setSegments(allZERO);
+    tahap = 5;// yang diganti
+    intpas = "";
+  }
+  while (tahap == 5)
+  {
+    char customKey = key.getKey();
+    if (customKey) {
+      if (isdigit(customKey)) { //isdigit untuk angkanya saja
+        if (index < 2) { //untu membatasi 2 digit saja
+          intpas += customKey; //dari keypad tersimpan diinputpass
+          comSetVal = intpas.toInt() * 100;
+          display.showNumberDec(comSetVal, true);
+          Serial.println(comSetVal);
+          index++;//membatasi angka yang diinput 2 saja
+          delay(200);
+        }
+      } else if (customKey == 'A') {
+        index = 0;
+        tahap = 6;
+      } else if (customKey == 'B') {
+        index = 0;
+        tahap = 7;
+
+      } else if (customKey == '*') { //clear valuenya  jadi nol
+        intpas = "";
+        index = 0;
+        comSetVal = 0;
+        display.showNumberDec(comSetVal, true);
+      } else if (customKey == '#') { //balik kemenu awal dan mengisi passwoard
+
+        index = 0;
+        tahap = 0;
+        intpas = "";
+      }
+    }
+  }
+  while (tahap == 6)
+  {
+
+    count = comSetVal / 100; //dibgai 100 supaya digit dikanan
+    lcd.clear();
+    lcd.print(" - NaikNaik - ");
+    int po = paus;
+    digitalWrite(gren, HIGH);
+    while (po <= count) {
+      char keyy = key.getKey();
+      display.showNumberDec(comSetVal + paus, true);
+      for (int i = 0; i < 250 ; i++)
+      {
+        delay(1);
+        if (keyy)
+        {
+          if (keyy == 'B')
+          {
+            tahap = 10;
+            digitalWrite(gren, LOW);
+            kondisi = 1;
+          }
+        }
+      }
+      if (kondisi == 1 )
+      {
+        break;
+      }
+      else
+      {
+        paus++;
+        po++;
+      }
+
+    }
+    if (kondisi ==0)
+    {
+      tahap = 11;//untuk count turun selesai
+    }
+  }
+  while (tahap == 7)//turun
+  {
+    count = comSetVal / 100;
+    lcd.clear();
+    lcd.print(" - TurunTurun - ");
+    int po1 = count-paus;
+    digitalWrite(red, HIGH);
+    while (po1 >= 0)
+    {
+      char keyy = key.getKey();
+      display.showNumberDec(comSetVal + po1, true);
+      for (int i = 0; i < 250 ; i++)
+      {
+        delay(1);
+        if (keyy)
+        {
+          if (keyy == 'B')
+          {
+           
+            tahap = 10;
+            digitalWrite(red, LOW);
+            kondisi = 2;
+          }
+        }
+      }
+      if (kondisi == 2 )
+      {
+        break;
+      }
+      else
+      {
+        paus++;
+        po1--;
+      }
+    }
+    if (kondisi ==0)
+    {
+      tahap = 11;//untuk count turun selesai
+    }
+     
+    
+  }
+  while (tahap == 9)//kalau langsung konting
+  {
+    digitalWrite(gren, HIGH);
+    char keyy = key.getKey();
+    //count = comSetVal / 100; //dibgai 100 supaya digit dikanan
+    lcd.clear();
+    lcd.print(" - NaikNaik - ");
+    display.showNumberDec(paus, true);
+
+    for (int i = 0; i < 250 ; i++)
+    {
+
+      if (keyy)
+      {
+        if (keyy == 'B')
+        {
+          tahap = 10;
+          digitalWrite(gren, LOW);
+          //kondisi = 1;
+        }
+
+      }
+      delay(1);
+
+
+    }
+    paus++;
+  }
+  while (tahap == 10)// pause
+  {
+    digitalWrite(yell, HIGH);
+    char keyy = key.getKey();
+    if (keyy)
+    {
+      if (keyy == 'C')
+      {
+        paus = 0;
+        paus  =count=kondisi=0;
+        tahap = 4;
+        digitalWrite(yell, LOW);
+      }
+      else if (keyy == 'D')
+      {
+        if(kondisi == 1)// dihapus jika ct up
+        {// juga
+          tahap = 6; //iki ojo dihapus
+        }
+        else if (kondisi == 2)//juga
+        {
+          tahap = 7; // juga
+        }
+        
+        kondisi = 0;
+        digitalWrite(yell, LOW);
+      }
+      else if (keyy == '#')
+      {
+        tahap = 0;
+        paus  =count=kondisi=0;
+        digitalWrite(yell, LOW);
+        digitalWrite(gren, LOW);
+        digitalWrite(red, LOW);
+      }
+    }
+  }
+
+while (tahap ==11){
+  lcd.clear();
+  lcd.print(" - hahaha - ");
+  delay(1000);
+  display.clear();
+  intpas = "";
+  index = 0;
+  paus  =count=kondisi=0;
+  tahap = 0;
+  // put your main code here, to run repeatedly:
+
+
+}
+while(tahap==12)
+{
+  
+}
+}
